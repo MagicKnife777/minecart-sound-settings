@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "com.magicknife.minecartsound.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"ScreenAccessor",
+		"AbstractSoundInstanceMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

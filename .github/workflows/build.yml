@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "master" ]
     tags:
-      - 'v*' # 当推送以 v 开头的标签（如 v1.0.0）时触发
+      - 'v*' # 只有当推送以 v 开头的标签（如 v1.1.0）时，才触发发布
 
 jobs:
   build:
@@ -26,12 +26,26 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
-      # 如果是打上了 Tag（比如 v1.0.0），就自动发布 Release
+      # 只有当触发了 v* 标签时，才自动创建 Release 并上传 jar 包
       - name: Create Release and Upload Asset
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/*.jar # 自动上传 build/libs 下的所有 jar 包
-          generate_release_notes: true # 自动生成更新日志（如果你没写）
+          files: build/libs/*.jar
+          # 这里是自动生成的发布简介（中英双语）
+          body: |
+            ### English
+            - Fixed an issue where the volume setting would reset to 100% after restarting the game.
+            - Added GitHub Actions CI/CD for automated building and releasing.
+            
+            **Requirements:**
+            - Minecraft 26.3, Fabric Loader (>=0.15.0), Fabric API
+
+            ### 中文
+            - 修复了重启游戏后，矿车声音设置会重置为 100% 的 Bug。
+            - 新增了 GitHub Actions 自动化构建与发布工作流。
+
+            **前置依赖：**
+            - Minecraft 26.3, Fabric Loader (>=0.15.0), Fabric API
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GitHub 自动提供的授权令牌
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

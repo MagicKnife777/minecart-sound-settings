@@ -9,6 +9,7 @@ import net.minecraft.network.chat.Component;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.List;
 
 public class MinecartSoundSettingsClient implements ClientModInitializer {
 
@@ -37,22 +38,25 @@ public class MinecartSoundSettingsClient implements ClientModInitializer {
 					}
 			);
 
-			// 反射寻找原版界面的滚动列表，并将滑块直接添加到列表末尾
 			Object listObj = findListObject(soundScreen);
-			if (listObj != null) {
-				try {
-					Method addSmallMethod = listObj.getClass().getMethod("addSmall", OptionInstance[].class);
-					addSmallMethod.invoke(listObj, (Object) new OptionInstance[]{minecartOption});
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+			if (listObj == null) return;
+
+			try {
+				Method addSmallMethod = listObj.getClass().getMethod("addSmall", OptionInstance[].class);
+				addSmallMethod.invoke(listObj, (Object) new OptionInstance[]{minecartOption});
+
+				// 注入成功后，调整位置
+				moveWidgetToVolumeSection(listObj);
+
+				// 【新增】物理魔法：假装滚动一下，强制触发原版的尺寸重算
+				forceUpdateByFakeScroll(listObj);
+
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
 		});
 	}
 
-	/**
-	 * 反射遍历字段，寻找原版的 OptionsList / ButtonListWidget
-	 */
 	private Object findListObject(Object screen) {
 		Class<?> clazz = screen.getClass();
 		while (clazz != null && clazz != Object.class) {
@@ -68,5 +72,58 @@ public class MinecartSoundSettingsClient implements ClientModInitializer {
 			clazz = clazz.getSuperclass();
 		}
 		return null;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void moveWidgetToVolumeSection(Object listObj) {
+		try {
+			Class<?> listClazz = listObj.getClass();
+			Field childrenField = null;
+
+			while (listClazz != null && listClazz != Object.class) {
+				for (Field f : listClazz.getDeclaredFields()) {
+					if (List.class.isAssignableFrom(f.getType())) {
+						childrenField = f;
+						break;
+					}
+				}
+				if (childrenField != null) break;
+				listClazz = listClazz.getSuperclass();
+			}
+
+			if (childrenField != null) {
+				childrenField.setAccessible(true);
+				List<Object> children = (List<Object>) childrenField.get(listObj);
+
+				if (children.size() < 5) return;
+
+				Object ourWidget = children.remove(children.size() - 1);
+				int insertIndex = children.size() - 3;
+				if (insertIndex < 0) insertIndex = 0;
+
+				children.add(insertIndex, ourWidget);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * 假装滚动一下列表，触发底层的 clampScrollAmount 和 高度重算
+	 */
+	private void forceUpdateByFakeScroll(Object listObj) {
+		try {
+			for (Method method : listObj.getClass().getMethods()) {
+				if (method.getName().equals("setScrollAmount") && method.getParameterCount() == 1 && method.getParameterTypes()[0] == double.class) {
+					method.setAccessible(true);
+					// 先滚下去 0.001，再滚回 0，原版就会被骗到，重新计算并渲染所有元素
+					method.invoke(listObj, 0.001);
+					method.invoke(listObj, 0.0);
+					return;
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 }
